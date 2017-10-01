@@ -13,19 +13,13 @@ import seaborn as sns
 import sklearn.linear_model  as lm
 from sklearn import preprocessing
 from sklearn.feature_selection import VarianceThreshold
-#from mpl_toolkits.mplot3d import Axes3D
-#import clustering
-from patsy import dmatrices, dmatrix, demo_data
 import numpy as np
 import statsmodels.api as sm
 from sklearn.preprocessing import normalize
 import statsmodels.stats as sms
 from sklearn.cross_validation import train_test_split
-import random
 import pylab as plt
-import matplotlib.mlab as mlab
 import matplotlib as mpl
-import sklearn
 from sklearn import cross_validation
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.ensemble import RandomForestClassifier
@@ -77,7 +71,7 @@ def pd_boot1(data,query1,q2): #Crude bootstrap error estimator
             x1.append(samp[samp[query1]=='yes'][q2].value_counts().divide(cnts[0])*100)
         return np.std(x1) 
  
-#Score Kbest algos by looking at Random Forest OOB score vs number of features included. Sanity check for SelectKBest algo. 
+#Score K-best feature selection algo by adding additional features step-wise and recalculating the change in score
 def Kbest_scoring(datas,y_target): 
     Kscores=[]
     for i in range(50):
@@ -94,7 +88,7 @@ def Kbest_scoring(datas,y_target):
     ax.set_ylim([0,1.0])
         
 
-#Simple feature to re-group categorical features (i.e. to un-dummy them) and plot resulting graph.
+#Simple feature to re-group categorical features (i.e. to un-dummy them) and plot resulting graph. Borrowed from StackOverflow post. 
 def graph_feature_imp(model, feature_names, autoscale=True, headroom=0.05, width=10, summarized_columns=None):
     #ensemble= Name of emsemble to be graphed
     #featurenames= list of names to display
@@ -118,9 +112,9 @@ def graph_feature_imp(model, feature_names, autoscale=True, headroom=0.05, width
     results.sort_values(inplace=True)
     return feature_dict
 
-    
-#Feature to select whether problem is a categorisation or regression problem, and to give an ordered list of feature importance for further manipulation
-def RF_type(X,Y): #feed X and target data and get model, scoring and sorted features
+#Feature to judge whether problem is regression or classification based
+#additionally returns ordered list of feature importances for further manip
+def RF_type(X,Y): #feed X and target Y to get model, scoring and sorted features
     class_score=-0.1
     reg_score=-0.1
     typ=[]
@@ -267,14 +261,6 @@ def Ridge_a_plot(X,Y,typ,niters): #Plot R2 value vs penalisation for Ridge class
     
     plt.show()     
           
-def shuffle_frame(data_,num):  #sub-feature
-    headers=[]
-    for i in range(num):
-        pos=random.randint(0,len(data_.columns)-1)
-        headers.append(data_.columns[pos])
-    return(data_[headers])
-
-
 # function to report best scores from optimiser
 def report(results, n_top=3):
     for i in range(1, n_top + 1):
@@ -286,43 +272,7 @@ def report(results, n_top=3):
                   results['std_test_score'][candidate]))
             print("Parameters: {0}".format(results['params'][candidate]))
             print("")
-            
-#Sanity check - randomly shufle features and re-run a slimmed down RF on only those features- crude test for correlated features                            
-def shuffle_test(data_,predy_df,typ,numbers): 
-    master=[]
-    master_scores=[]
-    
-    print "Shuffle " ,numbers
-    print "Shuffle test - i.e. randomly pick 5 features and report OOB scores"
-    for i in range(numbers):
-        print i,
-        #print "-----------------------------------------------------"
-        datanew=shuffle_frame(data_,4)      
-        score1=[]
-        if typ=='classifier':
-            model=RandomForestClassifier(n_estimators=50, oob_score=True,n_jobs=-1,bootstrap=True,random_state=42)
-            RFshu, RF_full_feats=RF_params(model,10,data_,predy_df,typ)
-            #model.fit(datanew,predy_df)
-            score1=RFshu.oob_score_    
-        elif typ=='regressor':
-            model=RandomForestRegressor(n_estimators=50, oob_score=True,n_jobs=-1,bootstrap=True,random_state=42)
-            model.fit(datanew,predy_df)
-            score1=model.oob_score_
-        else:
-            print "Unknown ML type; choose classifier or regressor"
-        #for i in datanew.columns:
-            #print "%s," %(i)
-        #print " "
-        #print score1, "SHUFFLED SCORE #######"
-        #print "---------------------------"
-        master.append((datanew.columns)) 
-        master_scores.append(score1)
-    print ""
-    print "Best shuffle result =",
-    print np.max(master_scores)
-    print master[np.argmax(master_scores)]
-    return master[np.argmax(master_scores)]
-    
+             
       
     
                                               
@@ -375,7 +325,7 @@ def RF_params(models,n_iter,X,Y,typ):
     print "Average feature importance for top 5", np.mean(feats[1][-5:])  #feats[1][i]
     return pRF,feats
 
-#optimise the parameters of gradient boosted classifier, with random searcha and cross-validation  
+#optimise the parameters of gradient boosted classifier, with random search and cross-validation  
 def gbc_params(models,n_iter,X,Y,typ): 
     if typ=='classifier':
         print "GBC param search..."
@@ -533,7 +483,7 @@ def cluster_RF(datax,no_clust,ynom,numfeatures,x123): #datax must include target
                                                                                                                                                             
  
     
-    
+    #end functions
 ##########################################################################################            
                                                                                                                                                                                                                                                                  
                                                                                                                                                                                                                                                                                                  
@@ -566,28 +516,26 @@ df.drop(["What_is_the_brand_of_your_solar_product","What_mode_of_transport_do_yo
 
 #initialise a few copies of data for different uses
 df=df
-train=df
 dat=df  
 
 
 #remove low-freq airtime spends (as likely being errors)
-air=train["How_much_MK_do_you_spend_on_airtime_in_a_month"].value_counts()
+air=dat["How_much_MK_do_you_spend_on_airtime_in_a_month"].value_counts()
 remove=air[air <=2].index #remove anything that appears less than 2 times = 0.5% % of responses
-train["How_much_MK_do_you_spend_on_airtime_in_a_month"].replace(remove, train["How_much_MK_do_you_spend_on_airtime_in_a_month"].median(skipna=True),inplace=True)
+dat["How_much_MK_do_you_spend_on_airtime_in_a_month"].replace(remove, train["How_much_MK_do_you_spend_on_airtime_in_a_month"].median(skipna=True),inplace=True)
 
 #binarise Sex
-train["Sex"].replace('male', 1,inplace=True)
-train["Sex"].replace('female', 0,inplace=True)
+dat["Sex"].replace('male', 1,inplace=True)
+dat["Sex"].replace('female', 0,inplace=True)
 
 #fill blanks with appropriate response
-train["do_you_own_any_solar_"].fillna('no',inplace=True)
+dat["do_you_own_any_solar_"].fillna('no',inplace=True)
 
 #convert instances of internet phonet to smart phone (understood as the same thing by Malawians)
-train["Smart_phone_basic_phone_internet_enabled_1st_phone"][train["Smart_phone_basic_phone_internet_enabled_1st_phone"]=='internetenabled']='smartphone'
+dat["Smart_phone_basic_phone_internet_enabled_1st_phone"][train["Smart_phone_basic_phone_internet_enabled_1st_phone"]=='internetenabled']='smartphone'
 
 #################
 
-dat=train  
 
 catvar=list(train.dtypes[train.dtypes == "object"].index) #list of cat columns
 numvar=list(train.dtypes[train.dtypes != "object"].index) #list of numeric columns
@@ -595,7 +543,7 @@ numvar=list(train.dtypes[train.dtypes != "object"].index) #list of numeric colum
 
 print "##########################################"
 
-#Simple plots to look at relationships in data
+#Simple plots to look at relationships in data 
 if 1==0: #switch for on or off
     fig, axes = plt.subplots(nrows=2, ncols=2)
     ###########Simple plots
@@ -682,63 +630,11 @@ for varx in catvar: # fillNA with most common value
 for i in numvar[2:]: #fill in missing numerical values with means
     train[i][np.isnan(train[i])] = np.nanmean(train[i])
  
-    
-""" create sub dataframes of people of interest for either T-testing or ML on sub-samps"""
-print "########### SUB DF ##########################"
-
-solar_owners = dat[dat["do_you_own_any_solar__yes"] == 1.0] 
-solar_losers = dat[dat["do_you_own_any_solar__no"] == 1.0]
-
-rural = dat[dat["Rural_peri-urban_rural"] == 1.0]
-urban = dat[dat["Rural_peri-urban_peri-urban"] == 1.0]
-geo=sim=pd.concat([rural,urban])
-
-for i in geo.columns:
-    print i
-sys.exit()
-
-
-""" This part is to look at technology adoption """
-gift_givers = dat[dat["Have_you_ever_given_a_phone_as_a_gift_Yes_no_yes"] == 1.0]
-gift_losers = dat[dat["Have_you_ever_given_a_phone_as_a_gift_Yes_no_no"] == 1.0]
-
-gift_rec = dat[dat["How_did_you_get_your_first_phone_(gift_purchased)_gift"] == 1.0]
-gift_nonrec = dat[dat["How_did_you_get_your_first_phone_(gift_purchased)_purchased"] == 1.0]
-"""   """
-
-
-solar_light= dat[dat["What_is_your_source_of_light_electricity,_battery_torch,_candle,_paraffin,_solar_light,_cell_phone,_other_solarlight"]==1.0]
-
-solar_owners = dat[dat["do_you_own_any_solar__yes"] == 1.0] 
-solar_losers = dat[dat["do_you_own_any_solar__no"] == 1.0]
-
-boost_yes = dat[dat["do_you_use_a_booster_charge_(15_minutes_to_charge_your_phone)_no"] == 1.0] 
-boost_no = dat[dat["do_you_use_a_booster_charge_(15_minutes_to_charge_your_phone)_yes"] == 1.0]
-
-solar_qual=pd.concat([ dat[dat["do_you_think_solar_is_good_quality_Yesno_yes"] == 1.0], dat[dat["do_you_think_solar_is_good_quality_Yesno_no"] == 1.0]]) # only people who answered question - no blanks
-
-solar_yes = solar_owners[solar_owners["do_you_think_solar_is_good_quality_Yesno_yes"] == 1.0] 
-solar_no= solar_owners[solar_owners["do_you_think_solar_is_good_quality_Yesno_no"] == 1.0]
-
-
-TNM = dat[dat["Which_network_SIM_card_do_you_have_tnm"] == 1.0] 
-Airtel = dat[dat["Which_network_SIM_card_do_you_have_airtel"] == 1.0]
-sim=pd.concat([TNM,Airtel])
-
-Mal=dat[dat["Sex"] == 1.0]
-Fem=dat[dat["Sex"] == 0.0] 
-
-
-
-for i in dat.columns:
-    print "%s: %s +- %s" %(i, dat[i].mean(), dat[i].sem())
-
-#Sub sub data frames 
-
-TNMsolar_owners = TNM[TNM["do_you_own_any_solar__yes"] == 1.0]
-TNMsolar_losers = TNM[TNM["do_you_own_any_solar__no"] == 1.0]
+  # Better version could use Bayesian linear equations to estimate the most likly value of missing data  
 
 #Simple T-test plots for data exploration: test binary combinations and plot anything which shows up with P-value of <0.05  . 
+# No correction for FWER or distribution - just a quick looksie
+
 if 1==1:
     for t in gift_rec.columns:
         A=gift_rec
@@ -826,8 +722,8 @@ if 1==0:
     
     print "---------------------"
     for t in dat.columns.values:
-        if stats.ttest_ind(solar_owners[t],solar_losers[t] )[1] < 0.05:
-            print t, stats.ttest_ind(solar_owners[t],solar_losers[t] ), np.mean(solar_owners[t]), np.mean(solar_losers[t]), "solar_owners, solar_losers"
+        if stats.ttest_ind(solar_owners[t],solar_non[t] )[1] < 0.05:
+            print t, stats.ttest_ind(solar_owners[t],solar_none[t] ), np.mean(solar_owners[t]), np.mean(solar_none[t]), "solar_owners, solar_none"
     
             
     print "---------------------"
@@ -838,7 +734,7 @@ if 1==0:
 
 
 ############################
-#test=train
+
 
 test=dat
 
@@ -895,14 +791,14 @@ print "####### MACHINE LEARNING PART ##########"
 
 
 
-predictor="Which_network_SIM_card_do_you_have_tnm" #var to predict
+predictor="Which_network_SIM_card_do_you_have_tnm" #var to predict, in this case a categorical response indicating TNM or their competitor
 olsvar=test[predictor]
 testori=test
 #pop off data for training, and also from holdout
 y_predict=test.pop(predictor)
 y_holdout=holdout.pop(predictor)
 
-test.drop("Which_network_SIM_card_do_you_have_airtel",axis=1,inplace=True) #drop mutually exclusive category
+test.drop("Which_network_SIM_card_do_you_have_airtel",axis=1,inplace=True) #drop mutually exclusive category produced in dummification
 
 
 
@@ -966,10 +862,6 @@ RF_full, RF_full_feats=RF_params(RF_full,niters_para,test,y_predict,typ)
  
 """ SLIM LINE ML"""
 
-#Various things to play with for sanity e.g. how does randomly shuffling and selecting features affect OOB score stability?
-#shuffled_feats=shuffle_test(testx,y_predict,typ,25)
-#slimjim=test[shuffled_feats] #INPUT APPROP FEATURES
-
 
 #Select only top 5 features to keep in data after SelectKbest and recursive feature extraction
 test=test[RF_full_feats[0][-5:]] 
@@ -997,7 +889,7 @@ feature_importances.sort_values(inplace=True)
 
 
 
-"""PLOT FOREST"""
+"""PLOT RF"""
 fig=plt.figure("Reduced forest %s" %(predictor))
 ax=plt.subplot(111)
 barnames= RF_slim_feats[0] 
@@ -1021,7 +913,7 @@ ax.text(0.2, 0.9, "Total power %f " %(score2*100.), horizontalalignment='center'
 
 #manually enter any appropriate sub data frames for generating crude (but easy to communicate) comparisons
 t1=solar_owners
-t2=solar_losers
+t2=solar_none
 tnoms="Solar","no solar"
 
 #feature plots
