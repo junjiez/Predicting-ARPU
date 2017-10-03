@@ -3,14 +3,11 @@
 holdout data
 """
 import pandas as pd
-import operator
 import statsmodels.formula.api as smf
 import sys
 from sklearn.decomposition import PCA
 import seaborn as sns
 import sklearn.linear_model  as lm
-#from mpl_toolkits.mplot3d import Axes3D
-#import clustering
 from patsy import dmatrices, dmatrix, demo_data
 import numpy as np
 import statsmodels.api as sm
@@ -19,13 +16,11 @@ from sklearn.cross_validation import train_test_split
 import random
 import pylab as plt
 import matplotlib.mlab as mlab
-import matplotlib as mpl
 from sklearn import cross_validation
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import SelectKBest as KBest
 from sklearn.feature_selection import f_regression
-
 from sklearn.svm import SVC
 from sklearn.svm import SVR
 from sklearn.linear_model import LinearRegression as LR
@@ -57,32 +52,30 @@ def get_spaced_colours(n): #Random colour generator
     
 inny=pd.ExcelFile("cleaned_data.xlsx") # read in excel
 df=inny.parse("Sheet1") #load sheet into dataframe
-df=df
-train=df
-dat=train   
 
-#remove extreme airtime spends
 
-air=train["How_much_MK_do_you_spend_on_airtime_in_a_month"].value_counts()
-remove=air[air <=2].index #remove anything that appears less than 2 times = 3% of responses
-train["How_much_MK_do_you_spend_on_airtime_in_a_month"].replace(remove, train["How_much_MK_do_you_spend_on_airtime_in_a_month"].median(skipna=True),inplace=True)
+#remove extreme airtime spends 
+
+air=df["How_much_MK_do_you_spend_on_airtime_in_a_month"].value_counts()
+remove=df[df <=2].index #remove anything that appears less than 2 times = 3% of responses
+df["How_much_MK_do_you_spend_on_airtime_in_a_month"].replace(remove, df["How_much_MK_do_you_spend_on_airtime_in_a_month"].median(skipna=True),inplace=True)
 
 #################
 
-train.drop(["Smart_phone_basic_phone_internet_enabled_2nd_phone","did_you_buy_your_2nd_phone_new_or_used","What_is_the_2nd_reason_you_use_your_phone","What_is_the_brand_of_your_solar_product"],axis=1,inplace=True)
+df.drop(["Smart_phone_basic_phone_internet_enabled_2nd_phone","did_you_buy_your_2nd_phone_new_or_used","What_is_the_2nd_reason_you_use_your_phone","What_is_the_brand_of_your_solar_product"],axis=1,inplace=True)
   
   
   
-dat=train  
+dat=df  
 
-#convert instances of internet phonet o smart phone
+# simplify responses into internet-enabled phones and non-smart phones
 dat["Smart_phone_basic_phone_internet_enabled_1st_phone"][dat["Smart_phone_basic_phone_internet_enabled_1st_phone"]=='internetenabled']='smartphone'
 dat.drop(["reported_monthly_income","Interviewer","Phone_number","Point_(1-5)","district"], axis=1, inplace=True)
 dat.drop(["Is_your_solar_sold_piece_by_piece","If_yes,_is_it_(solartorch,_5-10w,_10-25w,_25-50,_50-100w)","What_mode_of_transport_do_you_use_to_purchase_light_Motorbike,_minibus,_bike,_walk,_car,_other","What_could_be_more_important_to_have_a_solarlight_or_phone_charger_if_same_price_","Where_did_you_buy_your_solar_product_shop_trading_center,_shop_city,_shop_in_village,_shop_trading_center,_friend,_NGO,_church","What_is_the_second_use_for_your_solar_product","What_is_the_primary_use_of_your_solar_product"],axis=1,inplace=True)
 catvar=list(train.dtypes[train.dtypes == "object"].index) #Select cat columns
 numvar=list(train.dtypes[train.dtypes != "object"].index) #Select numeric columns
 
-
+#dummify
 for varx in catvar:
     dummies=pd.get_dummies(dat[varx],prefix=varx)
     dat=pd.concat([dat,dummies],axis=1)
@@ -99,35 +92,6 @@ print "########### SUB DF ##########################"
 solar_owners = dat[dat["do_you_own_any_solar__yes"] == 1.0] 
 solar_losers = dat[dat["do_you_own_any_solar__no"] == 1.0]
 
-rural = dat[dat["Rural_peri-urban_rural"] == 1.0]
-urban = dat[dat["Rural_peri-urban_peri-urban"] == 1.0]
-
-gift_givers = dat[dat["Have_you_ever_given_a_phone_as_a_gift_Yes_no_yes"] == 1.0]
-gift_losers = dat[dat["Have_you_ever_given_a_phone_as_a_gift_Yes_no_no"] == 1.0]
-
-solar_light= dat[dat["What_is_your_source_of_light_electricity,_battery_torch,_candle,_paraffin,_solar_light,_cell_phone,_other_solarlight"]==1.0]
-
-"""
-temp= train[train["do_you_own_any_solar_"] == 'yes']
-temp["What_is_the_brand_of_your_solar_product"].fillna('other',inplace=True)
-temp= temp["What_is_the_brand_of_your_solar_product"]
-
-solar_ownersx=dat[dat["do_you_own_any_solar__yes"] == 1.0] 
-solar_ownersx.drop(["What_is_the_brand_of_your_solar_product_draft","What_is_the_brand_of_your_solar_product_ecco","What_is_the_brand_of_your_solar_product_goldstone","What_is_the_brand_of_your_solar_product_sunking"],axis=1,inplace=True)
-solar_ownersx = pd.concat((solar_ownersx,temp),axis=1)
-"""
-
-
-solar_owners = dat[dat["do_you_own_any_solar__yes"] == 1.0] 
-solar_losers = dat[dat["do_you_own_any_solar__no"] == 1.0]
-
-
-
-boost_yes = dat[dat["do_you_use_a_booster_charge_(15_minutes_to_charge_your_phone)_no"] == 1.0] 
-boost_no = dat[dat["do_you_use_a_booster_charge_(15_minutes_to_charge_your_phone)_yes"] == 1.0]
-
-solar_qual=pd.concat([ dat[dat["do_you_think_solar_is_good_quality_Yesno_yes"] == 1.0], dat[dat["do_you_think_solar_is_good_quality_Yesno_no"] == 1.0]])
-
 solar_yes = solar_owners[solar_owners["do_you_think_solar_is_good_quality_Yesno_yes"] == 1.0] 
 solar_no= solar_owners[solar_owners["do_you_think_solar_is_good_quality_Yesno_no"] == 1.0]
 TNM_old = dat[dat["Which_network_SIM_card_do_you_have_tnm"] == 1.0]
@@ -139,7 +103,7 @@ Fem=dat[dat["Sex_female"] == 1.0]
 sim=pd.concat([TNM,Airtel])
 
 
-#fill blanks in TNM dat
+#fill blanks in TNM dat with simple mean
 TNM["real_airtime"].fillna(np.nanmean(TNM["real_airtime"]),inplace=True)
 dat.drop("real_airtime",axis=1,inplace=True)
 #dat=TNM
@@ -158,7 +122,7 @@ for i in numvar[2:]: #fill in missing numerical values, skipping point and date
 #chage dat to cluster and cl= to the DB of choice
 #dat_to_cluster=pd.concat([dat["How_much_MK_do_you_spend_on_airtime_in_a_month"],dat["Which_network_SIM_card_do_you_have_tnm"]],axis=1)
 dat_to_cluster=TNM
-Ncl=13  #number of clusters wanted for supervised
+Ncl=13  #number of clusters wanted, note this is calibrated by comparing Nclusters to average distance to cluster
 direc='figs\clusters'
 plt.figure()
 plt.scatter(dat["Which_network_SIM_card_do_you_have_tnm"],train["How_much_MK_do_you_spend_on_airtime_in_a_month"])
@@ -166,7 +130,7 @@ cl=TNM["How_much_MK_do_you_spend_on_airtime_in_a_month"].reshape(-1, 1)
 
 
 if 1==1:
-    #get ideal # clusters
+    #get ideal # clusters by comparing dist.to.clusters and number of clusters
     Nclust=np.linspace(1,cl.shape[0]-2,20,dtype=int) 
     
     KM_error_rate=[]
@@ -186,7 +150,7 @@ if 1==1:
 
     
 
-    
+    #assign clusters
     kmeans = KMeans(n_clusters=Ncl)
     clusters = kmeans.fit(cl)
     cl=pd.DataFrame(cl)
@@ -202,7 +166,7 @@ if 1==1:
     print dat_to_clusterc['cluster'].value_counts().divide(dat_to_clusterc['cluster'].count())*100.
     
     ##fout=file("%s\cluster_summary.txt" %(direc),'w+')
-       
+       #for each cluster, loop through and report metrics of interest
     print "####################################"
     for i in dat_to_clusterc["cluster"].value_counts().index:
         print "---------------- %0.f %% ------------" %(((float(dat_to_clusterc[dat_to_clusterc['cluster']==i]["cluster"].count())/float(dat_to_clusterc["cluster"].count()))*100.))
